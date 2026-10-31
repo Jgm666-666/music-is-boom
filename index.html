@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文字冒险小网页</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    font-family: "Microsoft YaHei", sans-serif;
+    background: #000;
+  }
+
+  #bg {
+    position: fixed;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transition: background-image 0.6s ease;
+    z-index: 0;
+  }
+
+  #character {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 80vh;
+    max-width: 90vw;
+    object-fit: contain;
+    z-index: 1;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+  }
+  #character.hidden { opacity: 0; }
+
+  @keyframes spin-slow { to { transform: rotate(360deg); } }
+  .spin-vinyl { animation: spin-slow 12s linear infinite; }
+  
+  .bg-pop-sage {
+    background-color: #FFFDF9;
+    background-image: 
+      radial-gradient(at 95% 5%, rgba(255, 122, 51, 0.14) 0px, transparent 55%),
+      radial-gradient(at 5% 95%, rgba(251, 191, 36, 0.14) 0px, transparent 55%);
+  }
+
+  #dialog-wrapper {
+    position: fixed;
+    bottom: 3vh;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 520px;
+    z-index: 10;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  #dialog-wrapper:active { transform: translateX(-50%) scale(0.99); }
+
+  .dialog-shadow {
+    position: absolute;
+    inset: 0;
+    background-color: #292524;
+    border-radius: 12px;
+    transform: translate(4px, 4px);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .dialog-box {
+    position: relative;
+    border: 2px solid #292524;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #FFFDF9;
+  }
+
+  .dialog-top-stripe {
+    height: 6px;
+    width: 100%;
+    display: flex;
+    border-bottom: 2px solid #292524;
+    pointer-events: none;
+  }
+  .stripe-1 { width: 50%; background-color: #FF7A33; }
+  .stripe-2 { width: 33.33%; background-color: #fbbf24; }
+  .stripe-3 { width: 16.67%; background-color: #14b8a6; }
+
+  .dialog-header {
+    padding: 6px 12px;
+    background-color: rgba(255, 247, 237, 0.7);
+    border-bottom: 2px dashed #d6d3d1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+  }
+  .header-left { display: flex; align-items: center; gap: 8px; }
+  
+  .pop-badge {
+    padding: 2px 6px;
+    background-color: #FF7A33;
+    color: white;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    border-radius: 4px;
+    border: 1px solid #292524;
+    box-shadow: 1px 1px 0px #292524;
+  }
+  
+  .speaker-name {
+    font-size: 10px;
+    font-weight: bold;
+    color: #78716c;
+    letter-spacing: 1px;
+    font-family: monospace;
+  }
+
+  .vinyl-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: #292524;
+    border: 1px solid #57534e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+  .vinyl-center {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #FF7A33;
+    border: 1px solid #fde68a;
+  }
+
+  .dialog-text-area {
+    padding: 12px 16px;
+    color: #292524;
+    font-size: 14px;
+    line-height: 1.6;
+    letter-spacing: 0.5px;
+    font-family: "Microsoft YaHei", sans-serif;
+  }
+
+  #text-container {
+    height: 76px; 
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+  #text-container::-webkit-scrollbar { display: none; }
+  #text-container { -ms-overflow-style: none; scrollbar-width: none; }
+
+  #text::after {
+    content: "▌";
+    color: #292524;
+    animation: cursorBlink 0.8s step-end infinite;
+    margin-left: 2px;
+  }
+  #text.done::after { content: ""; }
+  @keyframes cursorBlink { 50% { opacity: 0; } }
+
+  .dialog-footer {
+    padding: 6px 12px;
+    background-color: rgba(245, 245, 244, 0.8);
+    border-top: 2px solid #292524;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .tire-stripe {
+    width: 60px;
+    height: 6px;
+    background: repeating-linear-gradient(-45deg, #292524 0, #292524 4px, transparent 4px, transparent 8px);
+    border-radius: 2px;
+    opacity: 0.75;
+  }
+  .footer-text {
+    font-size: 9px;
+    font-family: monospace;
+    font-weight: bold;
+    color: #a8a29e;
+    letter-spacing: 1px;
+  }
+
+  #hint {
+    position: absolute;
+    right: 12px;
+    bottom: -22px;
+    color: rgba(255,255,255,0.8);
+    font-size: 12px;
+    z-index: 10;
+    animation: blink 1.4s infinite;
+    text-shadow: 1px 1px 3px #000;
+  }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  #choices {
+    position: fixed;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: rgba(0,0,0,0.6);
+    z-index: 20;
+  }
+  #choices.show { display: flex; }
+  #choices button {
+    width: min(400px, 85vw);
+    padding: 14px 20px;
+    font-size: 15px;
+    color: #292524;
+    background: #FFFDF9;
+    border: 2px solid #292524;
+    box-shadow: 4px 4px 0px #292524;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.1s;
+    font-family: inherit;
+    font-weight: bold;
+  }
+  #choices button:hover { background: #FF7A33; color: #fff; }
+  #choices button:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px #292524; }
+
+  #endMark {
+    position: fixed;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-size: clamp(28px, 5vw, 52px);
+    letter-spacing: 12px;
+    text-shadow: 0 0 24px rgba(255, 122, 51, 0.8);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 15;
+    transition: opacity 0.8s ease;
+    white-space: nowrap;
+  }
+  #endMark.show { opacity: 1; }
+
+  #restartBtn {
+    position: fixed;
+    left: 50%;
+    bottom: 35vh;
+    transform: translateX(-50%);
+    padding: 10px 28px;
+    font-size: 15px;
+    color: #292524;
+    background: #FF7A33;
+    border: 2px solid #292524;
+    border-radius: 8px;
+    box-shadow: 2px 2px 0px #292524;
+    cursor: pointer;
+    z-index: 25;
+    display: none;
+    font-family: inherit;
+    font-weight: bold;
+    letter-spacing: 2px;
+    transition: all 0.1s;
+  }
+  #restartBtn.show { display: block; }
+  #restartBtn:active { transform: translate(-50%, 2px); box-shadow: 0px 0px 0px #292524; }
+</style>
+</head>
+<body>
+
+  <div id="bg"></div>
+  <img id="character" class="hidden" alt="">
+
+  <div id="dialog-wrapper">
+    <div class="dialog-shadow"></div>
+    
+    <div id="dialog" class="dialog-box bg-pop-sage">
+      <div class="dialog-top-stripe">
+        <div class="stripe-1"></div>
+        <div class="stripe-2"></div>
+        <div class="stripe-3"></div>
+      </div>
+
+      <div class="dialog-header">
+        <div class="header-left">
+          <span class="pop-badge">POP-SAGE</span>
+          <span id="speaker" class="speaker-name">HIGHWAY // 1979</span>
+        </div>
+        <div class="vinyl-icon spin-vinyl">
+          <div class="vinyl-center"></div>
+        </div>
+      </div>
+
+      <div class="dialog-text-area">
+        <div id="text-container">
+          <span id="text">点击这里开始故事……</span>
+        </div>
+      </div>
+
+      <div class="dialog-footer">
+        <div class="tire-stripe"></div>
+        <span class="footer-text">SIDE A // STEREO</span>
+      </div>
+    </div>
+
+    <div id="hint">点击继续 ▸</div>
+  </div>
+
+  <div id="choices"></div>
+  <div id="endMark">— 完 —</div>
+  <button id="restartBtn">重新开始</button>
+
+<script>
+/* ======================
+   背景资源
+   ====================== */
+const BG = {
+  alley: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1920&q=80",
+  street: "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=1920&q=80",
+  convenience: "https://images.unsplash.com/photo-1601598851547-4302969d06aa?w=1920&q=80",
+  bar: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=1920&q=80",
+  rain: "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?w=1920&q=80"
+};
+    /* ======================
+   剧本：全部用 id 命名，杜绝索引错位
+   每个节点: { id, bg, speaker, text, choices?, end? }
+   选项: { text, next: "节点id" }
+   ====================== */
+const story = {
+
+  /* ---------- 开场 ---------- */
+  "start": { bg: BG.alley, speaker: "旁白", text: "夏夜十一点，柏油路面依然散着白日残留的焦热。巷口外的商业街霓虹闪烁，车流鸣笛与烧烤摊的划拳声混杂成一片鼎沸的声浪。一墙之隔的背街小巷里却冷清许多，只有老旧空调外机滴滴答答地漏着水，头顶的路灯接触不良，发出轻微的电流嗡鸣，把飞虫的影子拉得老长。" },
+  "walk_alley": { bg: BG.alley, speaker: "旁白", text: "你顺着青苔斑驳的墙根往里走。" },
+  "passerby_1": { bg: BG.alley, speaker: "路人", text: "妈的，这都什么破烂传单，塞一晚上……" },
+  "passerby_2": { bg: BG.alley, speaker: "旁白", text: "巷口拐角处突然传来一阵骂骂咧咧的抱怨。一个刚下班模样的男人烦躁地抖了抖公文包，随手将捏成半团的纸片往后一扬。" },
+  "fly_to_face": { bg: BG.alley, speaker: "旁白", text: "一阵带着暑气的穿堂风恰好灌进巷子，那张纸片打着旋儿飞起，不偏不倚，啪地一下糊在了你脸上。" },
+  "read_flyer": { bg: BG.alley, speaker: "旁白", text: "粗糙的铜版纸带着股廉价油墨味。拿下来借着昏黄的灯光一看，纸面上印着极其夸张的荧光绿艺术字——" },
+  "flyer_text": { bg: BG.alley, speaker: "传单", text: "【BugFly！重金招新！fly出你的人生！】\n【要求：会响的，好看的，能独立移动的。】" },
+  "flyer_detail": { bg: BG.alley, speaker: "旁白", text: "底下印着一行小字，招聘地点是一家小酒吧，位置就在隔着两条街的旮旯里，是个平时连听都没听说过的冷门地方。" },
+
+  /* ---------- 第一次分支 ---------- */
+  "first_choice": { bg: BG.alley, speaker: "旁白", text: "你盯着那张荧光绿的传单，心里琢磨着该怎么办。", choices: [
+    { text: "好奇收下，并去看看", next: "A_go_1" },
+    { text: "收下，但是不去看，用来做草稿纸刚好", next: "B_keep_1" },
+    { text: "直接扔掉，并且吐槽一下", next: "C_throw_1" }
+  ]},
+
+  /* ===== A线：好奇收下并去 ===== */
+  "A_go_1": { bg: BG.alley, speaker: "旁白", text: "你盯着那句“会响的，好看的，能独立移动的”看了两秒，忍不住笑了一声。这算什么要求，招个挂着铃铛的扫地机器人也能达标。反正夏夜漫长，回去也是对着天花板吹空调，去见识一下这个叫“BugFly”的草台班子到底能有多离谱，倒也不失为一种消遣。" },
+  "A_go_2": { bg: BG.alley, speaker: "旁白", text: "你把传单折了两折揣进裤兜，脚尖一转，顺着传单背面手绘的歪扭地图，朝着两条街外走去。" },
+  "kid_howl": { bg: BG.convenience, speaker: "旁白", text: "没走出几步，前方一家二十四小时便利店的冷白灯箱下，突然炸开一阵撕心裂肺的干嚎。" },
+  "kid_desc": { bg: BG.convenience, speaker: "旁白", text: "一个十三四岁模样的半大孩子正坐在马路牙子上撒泼。他身上套着件尺码大得离谱的骷髅头铆钉T恤，裤腿上挂着三四条劣质铝合金铁链，随着他蹬腿的动作哗啦乱响。头发用发胶抓成了鸡窝，额前还挑染了一撮掉色的绿毛，整个人活像一只掉进染缸后又被雷劈过的鹦鹉。" },
+  "kid_yell": { bg: BG.convenience, speaker: "小孩", text: "我不去补习班！我要退学！我要搞摇滚！我要组乐队！" },
+  "kid_cry": { bg: BG.convenience, speaker: "旁白", text: "小孩一把鼻涕一把泪，糊了满脸，手里还死死攥着两根鼓槌往地上砸。" },
+  "mom_yell": { bg: BG.convenience, speaker: "女人", text: "摇滚？我看你是想挨滚！期中考试数学考十八分，你连五线谱上那几个豆芽菜都数不明白，还敢跟我提乐队？赶紧给我滚起来回家写卷子！" },
+  "mom_slap": { bg: BG.convenience, speaker: "旁白", text: "站在他面前的女人拎着一袋刚买的挂面，气得胸口剧烈起伏，抬手就在他后脑勺上削了一巴掌。" },
+  "kid_soul": { bg: BG.convenience, speaker: "小孩", text: "你根本不懂艺术！那是我的灵魂！" },
+  "kid_ow": { bg: BG.convenience, speaker: "旁白", text: "小孩捂着脑袋嗷嗷乱叫。" },
+  "mom_out": { bg: BG.convenience, speaker: "女人", text: "我今天就让你灵魂出窍！" },
+  "mom_roll": { bg: BG.convenience, speaker: "旁白", text: "女人把挂面往地上一放，撸起袖子就要去拧他的耳朵。" },
+  "second_choice": { bg: BG.convenience, speaker: "旁白", text: "你站在不远处，看着这场闹剧。", choices: [
+    { text: "冷眼旁观，默默吐吐槽", next: "S_watch_1" },
+    { text: "走到面前光明正大的吐槽", next: "S_mock_1" },
+    { text: "帮小孩劝说", next: "S_help_1" }
+  ]},
+
+  /* ===== B线：收下不去 ===== */
+  "B_keep_1": { bg: BG.alley, speaker: "旁白", text: "你把传单翻了个面。正面花里胡哨得伤眼，背面倒是完完整整的一片空白。纸质还行，挺厚实，拿铅笔写写画画应该不会洇墨，拿来做草稿纸或者垫个泡面盖子刚刚好。至于那个什么“fly出人生”的地下乐队，大概率是几个喝多了的年轻人在发疯。" },
+  "B_keep_2": { bg: BG.alley, speaker: "旁白", text: "你面无表情地把传单抚平，对折塞进随身的包里，连脚步都没停一下，继续顺着冷清的巷子往住处走。" },
+
+  /* ===== C线：扔掉 ===== */
+  "C_throw_1": { bg: BG.alley, speaker: "旁白", text: "“有病吧，招人还是招大件垃圾呢。”你看着那三行莫名其妙的要求，嫌弃地啧了一声。大半夜被糊了一脸油墨味不说，还得被迫阅读这种毫无逻辑的文字垃圾，简直拉低整条街的平均智商。" },
+  "C_throw_2": { bg: BG.alley, speaker: "旁白", text: "手腕一扬，那张荧光绿的传单在半空中划出一道弧线，精准地落进了旁边敞着口的绿色分类垃圾桶里，和几个空塑料瓶躺在了同一处。你拍了拍手上并不存在的灰尘，加快脚步走出了这条闷热的小巷。" },
+
+  /* ===== 三条线汇合到便利店（共用节点） ===== */
+  "conv_join_A": { bg: BG.convenience, speaker: "旁白", text: "没走出几步，前方一家二十四小时便利店的冷白灯箱下，突然炸开一阵撕心裂肺的干嚎。" },
+  "conv_join_B": { bg: BG.convenience, speaker: "旁白", text: "没走出几步，前方一家二十四小时便利店的冷白灯箱下，突然炸开一阵撕心裂肺的干嚎。" },
+  "conv_join_C": { bg: BG.convenience, speaker: "旁白", text: "没走出几步，前方一家二十四小时便利店的冷白灯箱下，突然炸开一阵撕心裂肺的干嚎。" },
+
+  /* ===== 第二次分支：三种吐槽结局 ===== */
+  /* --- 冷眼旁观 --- */
+  "S_watch_1": { bg: BG.convenience, speaker: "旁白", text: "你脚步未停，双手插在兜里，顺着便利店门前的阴影处不紧不慢地绕了过去。路过那对母子时，目光在小孩那身五金店批发来的行头和满脸鼻涕泡上扫了一眼，随后面无表情地移开视线。" },
+  "S_watch_2": { bg: BG.convenience, speaker: "旁白", text: "就这小鬼头，兜里怕是连百十块钱都掏不出，顶着一脑袋枯草和满脸青春痘，要钱没钱，要颜没颜，去台上站着是准备给观众表演胸口碎大石吗？挨这一顿削，真不冤。" },
+  "S_watch_3": { bg: BG.convenience, speaker: "旁白", text: "你在心里淡淡地评价完，拐过街角，将身后杀猪般的嚎叫声彻底甩开。" },
+
+  /* --- 光明正大吐槽 --- */
+  "S_mock_1": { bg: BG.convenience, speaker: "旁白", text: "你停下脚步，直接晃到了那盏明亮的灯箱底下，居高临下地打量着地上打滚的绿毛小孩。正准备动手的妈妈愣了一下，停住动作，警惕地看向这个突然靠近的陌生人。小孩也止住了哭声，抽噎着仰起头。" },
+  "S_mock_2": { bg: BG.convenience, speaker: "你", text: "小朋友，听你妈的，回去写卷子吧。你这要钱没钱，要脸没脸的？就你这条件，去了也是给舞台当背景板里的灭火器。" },
+  "S_mock_3": { bg: BG.convenience, speaker: "旁白", text: "空气瞬间安静了两秒。" },
+  "S_mock_4": { bg: BG.convenience, speaker: "旁白", text: "小孩的脸以肉眼可见的速度涨成了猪肝色，嘴巴张得能塞进一个鸡蛋，半天没喘上气来。" },
+  "S_mock_5": { bg: BG.convenience, speaker: "小孩", text: "你谁啊！你人身攻击！妈！他骂我丑！" },
+  "S_mock_6": { bg: BG.convenience, speaker: "旁白", text: "小孩爆发出比刚才还要响亮十倍的哭嚎。一旁的妈妈先是一怔，扑哧一声没憋住笑，紧接着又板起脸，一把拽起小孩的衣领。" },
+  "S_mock_7": { bg: BG.convenience, speaker: "女人", text: "听见没有？连路人都看不过去了！还不赶紧走，嫌不够丢人是不是！" },
+  "S_mock_8": { bg: BG.convenience, speaker: "旁白", text: "说完，冲着你略显尴尬地点了下头，拖着还在蹬腿抗议的“摇滚巨星”快步消失在了夜色里。" },
+
+  /* --- 帮小孩劝说 --- */
+  "S_help_1": { bg: BG.convenience, speaker: "旁白", text: "你叹了口气，走上前去，在女人巴掌落下来之前，弯腰捡起了地上那袋挂面，顺手递了过去。" },
+  "S_help_2": { bg: BG.convenience, speaker: "你", text: "大姐，消消气，大半夜的，别把嗓子喊哑了。" },
+  "S_help_3": { bg: BG.convenience, speaker: "旁白", text: "女人一愣，有些不好意思地接过挂面，但还是气不打一处来地指着地上的孩子。" },
+  "S_help_4": { bg: BG.convenience, speaker: "女人", text: "你是不知道，这兔崽子魔怔了，天天闹着要搞什么破乐队，书也不读了！" },
+  "S_help_5": { bg: BG.convenience, speaker: "旁白", text: "小孩见有人帮腔，立刻委屈地抱住膝盖，拿袖子胡乱抹着眼泪。你低头看了小孩一眼，随后笑着对女人说道。" },
+  "S_help_6": { bg: BG.convenience, speaker: "你", text: "十几岁的年纪，喜欢热闹、想出风头都正常，您越是硬拦着，他越觉得自己在搞什么伟大的叛逆事业。倒不如跟他约法三章，想碰乐器可以，先把数学成绩提上来。真让他每天在题海和追求灵魂的路上搏斗一下，不出半个月，他自己就知道自己的灵魂多么神圣。" },
+  "S_help_7": { bg: BG.convenience, speaker: "旁白", text: "女人听得怔住，琢磨了两秒，脸上的怒气消了大半，眼神变得若有所思。地上的小孩却傻了眼，不可置信地瞪大了眼睛，似乎没想到这个看似帮自己说话的路人，反手就给自己挖了个更大的坑。" },
+  "S_help_8": { bg: BG.convenience, speaker: "女人", text: "行，还是年轻人有办法。听见没？下次月考不进前二十，你这两根烧火棍我就给你撅了当柴烧！赶紧起来回家！" },
+  "S_help_9": { bg: BG.convenience, speaker: "旁白", text: "小孩敢怒不敢言，狠狠瞪了你一眼，灰溜溜地从地上爬起来，跟着妈妈走了。" },
+
+  /* ===== 雨夜汇合节点 ===== */
+  "rain": { bg: BG.rain, speaker: "旁白", text: "夏夜的天气像极了翻脸无情的债主。前一秒还只是闷热，下一秒，头顶的黑云便毫无征兆地裂开一道口子，豆大的雨点噼里啪啦地砸落下来，瞬间连成一片白茫茫的雨幕。雨水砸在滚烫的柏油路上，腾起一股混杂着尘土与铁锈味的白烟。", junction: true },
+
+  /* ===== A路径雨后续 ===== */
+  "A_rain_1": { bg: BG.bar, speaker: "旁白", text: "你顶着骤雨狂奔了两条街，顺着台阶一头扎进了酒吧。店里冷气开得很足，却没什么客人。吧台后头坐着个青年，正百无聊赖地拿牙签戳着柠檬片。你抹了一把额头上的雨水，从兜里掏出那张被汗和雨浸得发软的荧光绿传单，啪地拍在吧台上。" },
+  "A_rain_2": { bg: BG.bar, speaker: "你", text: "请问，那个‘BugFly’乐队是在这儿招新吗？" },
+  "A_rain_3": { bg: BG.bar, speaker: "旁白", text: "青年眼睛一亮，猛地从高脚凳上弹起来，上下打量了你一番，满意得直拍大腿。" },
+  "A_rain_4": { bg: BG.bar, speaker: "青年", text: "对对对！就是我！你看，我就说这传单设计得有灵魂吧！瞧你这长相，绝对符合‘好看的’；刚才跑进来带起一阵风，属于‘能独立移动的’；现在能开口说话，那就是‘会响的’！完美达标！" },
+  "A_rain_5": { bg: BG.bar, speaker: "旁白", text: "你听完这番草率到极点的审核逻辑，眼角抽了抽，指着传单上最大的那两个字。" },
+  "A_rain_6": { bg: BG.bar, speaker: "你", text: "行，那上头写的‘重金’呢？" },
+  "A_rain_7": { bg: BG.bar, speaker: "旁白", text: "青年神秘一笑，弯腰在吧台底下摸索了半天，吃力地抱上来一块黑乎乎、锈迹斑斑的秤砣，哐当一声砸在台面上，震得酒杯乱晃。" },
+  "A_rain_8": { bg: BG.bar, speaker: "青年", text: "诺，纯铁的，足足两斤重！够不够重？是不是金属？" },
+  "A_rain_9": { bg: BG.bar, speaker: "旁白", text: "空气死一般地寂静。外头的雷声轰隆作响，你盯着那块两斤重的废铁，深刻意识到，自己今夜推开的或许不是一扇通往音乐殿堂的大门，而是一座精神病院的侧门。但奇妙的是，看着对方那双写满“快夸我聪明”的清澈眼睛，你竟然觉得，明天太阳升起的时候，原本枯燥的生活好像真的要因为这块秤砣，砸出点不一样的水花了。", end: true },
+
+  /* ===== B路径雨后续 ===== */
+  "B_rain_1": { bg: BG.rain, speaker: "旁白", text: "暴雨倾盆而下，你根本来不及跑回住处，只能就近找了个亮着灯的地下室入口钻了进去。" },
+  "B_rain_2": { bg: BG.bar, speaker: "旁白", text: "推开门，一股潮湿的麦芽酒味扑面而来。你站在门口甩了甩头发上的水珠，抬头一看墙上歪歪扭扭的霓虹灯牌。得，绕了一圈，居然误打误撞跑进刚才那张传单上的酒吧里来了。" },
+  "B_rain_3": { bg: BG.bar, speaker: "旁白", text: "你走到吧台前，想找张纸巾擦擦脸上的雨水。结果吧台上空空荡荡，除了几个空酒瓶，连半张餐巾纸的影子都没见着。" },
+  "B_rain_4": { bg: BG.bar, speaker: "你", text: "开酒吧连纸都不备一张，老板抠门抠到太平洋去了。" },
+  "B_rain_5": { bg: BG.bar, speaker: "旁白", text: "你小声嘟囔了一句，无奈之下，只能伸手进包里，把刚才收起来准备当草稿纸的那张传单又摸了出来，准备先拿它凑合擦擦下巴上的水。那抹刺眼的荧光绿刚一露头，吧台底下突然蹿出来一个毛茸茸的脑袋，一把按住了你的手腕，激动得声音都在抖。" },
+  "B_rain_6": { bg: BG.bar, speaker: "青年", text: "兄弟！冒着这么大雨拿着传单找过来，你对摇滚是真爱啊！不用擦了，看你这条件，‘好看的、会响的、能独立移动的’全占了，我们‘BugFly’乐队正式录用你了！" },
+  "B_rain_7": { bg: BG.bar, speaker: "旁白", text: "你拿着传单的手僵在半空，满头问号。" },
+  "B_rain_8": { bg: BG.bar, speaker: "你", text: "不是，我只是……" },
+  "B_rain_9": { bg: BG.bar, speaker: "青年", text: "别谦虚！一家人不说两家话！" },
+  "B_rain_10": { bg: BG.bar, speaker: "旁白", text: "你放弃了挣扎，干脆顺着他的话往下接，指了指纸上的字。" },
+  "B_rain_11": { bg: BG.bar, speaker: "你", text: "那你们承诺的‘重金’呢？" },
+  "B_rain_12": { bg: BG.bar, speaker: "旁白", text: "青年嘿嘿一笑，反手从吧台底下掏出一块沉甸甸、起码有两斤重的生铁疙瘩，哐当一声拍在桌面上。" },
+  "B_rain_13": { bg: BG.bar, speaker: "青年", text: "两斤重的金属，简称重金！童叟无欺！" },
+  "B_rain_14": { bg: BG.bar, speaker: "旁白", text: "看着眼前这块能拿去废品站换两毛钱的“重金”，你陷入了长久的沉默。一张本来注定要在那个旮旯里度过余生的草稿纸，硬生生把自己变成了一张卖身契。命运这玩意儿大概就像夏夜的暴雨一样不讲道理，谁能想到呢，明天等待着你的，不再是按部就班的日常，而是一个连纸巾都买不起、却拥有两斤废铁的奇葩乐队。", end: true },
+
+    /* ===== C路径雨后续 ===== */
+  "C_rain_1": { bg: BG.rain, speaker: "旁白", text: "这场雨下得毫无武德，你被浇了个透心凉，狼狈不堪地冲进路边一处亮着微光的地下室躲雨。刚推门进去喘口气，一抬头，就看见墙上挂着霓虹灯牌。你愣了一下，这风格怎么这么眼熟？还没等细想，脸上淌下来的雨水就滑进了嘴角。" },
+  "C_rain_2": { bg: BG.bar, speaker: "旁白", text: "你走到吧台边四处张望，想找张餐巾纸，结果台面上干干净净，只有厚厚一沓荧光绿的纸片，上头印着熟悉的傻缺标语——【BugFly！重金招新！】" },
+  "C_rain_3": { bg: BG.bar, speaker: "你", text: "不是吧，这玩意儿还会自动刷新？偌大个吧台连张擦手的纸都没有，拿传单当抹布使呢？" },
+  "C_rain_4": { bg: BG.bar, speaker: "旁白", text: "嫌弃归嫌弃，总不能一直滴着水。你随手从那沓传单最上头抽了一张，刚准备往脸上糊，旁边阴影里突然扑出来一个青年，两眼放光地握住你的肩膀。" },
+  "C_rain_5": { bg: BG.bar, speaker: "青年", text: "我就知道！这么大的雨都拦不住你奔向‘BugFly’的脚步！一进门就直奔传单，这份诚意感动上天！看你这模样，会响、好看、能自己走道，完全符合要求，明天直接来排练！" },
+  "C_rain_6": { bg: BG.bar, speaker: "旁白", text: "你捏着那张粗糙的铜版纸，整个人都麻了。" },
+  "C_rain_7": { bg: BG.bar, speaker: "你", text: "我只是想擦个水……" },
+  "C_rain_8": { bg: BG.bar, speaker: "青年", text: "懂！摇滚人从不轻易表达内心的炽热！" },
+  "C_rain_9": { bg: BG.bar, speaker: "旁白", text: "青年竖起大拇指。你深吸一口气，决定用魔法打败魔法，指着传单发问。" },
+  "C_rain_10": { bg: BG.bar, speaker: "你", text: "行，那‘重金’在哪？" },
+  "C_rain_11": { bg: BG.bar, speaker: "旁白", text: "青年骄傲地挺起胸膛，弯腰从脚边拎起一块足有两斤重的废旧哑铃片，咚地砸在吧台上。" },
+  "C_rain_12": { bg: BG.bar, speaker: "青年", text: "呐！两斤重的金属，这还不算重金？" },
+  "C_rain_13": { bg: BG.bar, speaker: "旁白", text: "你木然地看着那块铁片，听着门外哗哗的雨声。十几分钟前，那张一模一样的传单明明已经被精准投进了垃圾桶；十几分钟后，它的兄弟姐妹却在这里完成了绝地反杀。命运的回旋镖不仅扎人，还附赠了两斤废铁。看来从明天开始，哪怕是为了把这块铁片卖掉换盒纸巾，也得跟这群神经病耗下去了。", end: true }
+};
+
+/* ======================
+   流程链接表
+   每个 id → 下一句 id（不在表里的走 choices / end）
+   ====================== */
+const NEXT = {
+  "start": "walk_alley",
+  "walk_alley": "passerby_1",
+  "passerby_1": "passerby_2",
+  "passerby_2": "fly_to_face",
+  "fly_to_face": "read_flyer",
+  "read_flyer": "flyer_text",
+  "flyer_text": "flyer_detail",
+  "flyer_detail": "first_choice",
+
+  // A线
+  "A_go_1": "A_go_2",
+  "A_go_2": "conv_join_A",
+  "conv_join_A": "kid_howl",
+  "kid_howl": "kid_desc",
+  "kid_desc": "kid_yell",
+  "kid_yell": "kid_cry",
+  "kid_cry": "mom_yell",
+  "mom_yell": "mom_slap",
+  "mom_slap": "kid_soul",
+  "kid_soul": "kid_ow",
+  "kid_ow": "mom_out",
+  "mom_out": "mom_roll",
+  "mom_roll": "second_choice",
+
+  // B线
+  "B_keep_1": "B_keep_2",
+  "B_keep_2": "conv_join_B",
+  "conv_join_B": "kid_howl",
+
+  // C线
+  "C_throw_1": "C_throw_2",
+  "C_throw_2": "conv_join_C",
+  "conv_join_C": "kid_howl",
+
+  // 第二次分支：冷眼旁观
+  "S_watch_1": "S_watch_2",
+  "S_watch_2": "S_watch_3",
+  "S_watch_3": "rain",
+
+  // 第二次分支：光明正大吐槽
+  "S_mock_1": "S_mock_2",
+  "S_mock_2": "S_mock_3",
+  "S_mock_3": "S_mock_4",
+  "S_mock_4": "S_mock_5",
+  "S_mock_5": "S_mock_6",
+  "S_mock_6": "S_mock_7",
+  "S_mock_7": "S_mock_8",
+  "S_mock_8": "rain",
+
+  // 第二次分支：帮小孩劝说
+  "S_help_1": "S_help_2",
+  "S_help_2": "S_help_3",
+  "S_help_3": "S_help_4",
+  "S_help_4": "S_help_5",
+  "S_help_5": "S_help_6",
+  "S_help_6": "S_help_7",
+  "S_help_7": "S_help_8",
+  "S_help_8": "S_help_9",
+  "S_help_9": "rain",
+
+  // A路径雨后续
+  "A_rain_1": "A_rain_2",
+  "A_rain_2": "A_rain_3",
+  "A_rain_3": "A_rain_4",
+  "A_rain_4": "A_rain_5",
+  "A_rain_5": "A_rain_6",
+  "A_rain_6": "A_rain_7",
+  "A_rain_7": "A_rain_8",
+  "A_rain_8": "A_rain_9",
+
+  // B路径雨后续
+  "B_rain_1": "B_rain_2",
+  "B_rain_2": "B_rain_3",
+  "B_rain_3": "B_rain_4",
+  "B_rain_4": "B_rain_5",
+  "B_rain_5": "B_rain_6",
+  "B_rain_6": "B_rain_7",
+  "B_rain_7": "B_rain_8",
+  "B_rain_8": "B_rain_9",
+  "B_rain_9": "B_rain_10",
+  "B_rain_10": "B_rain_11",
+  "B_rain_11": "B_rain_12",
+  "B_rain_12": "B_rain_13",
+  "B_rain_13": "B_rain_14",
+
+  // C路径雨后续
+  "C_rain_1": "C_rain_2",
+  "C_rain_2": "C_rain_3",
+  "C_rain_3": "C_rain_4",
+  "C_rain_4": "C_rain_5",
+  "C_rain_5": "C_rain_6",
+  "C_rain_6": "C_rain_7",
+  "C_rain_7": "C_rain_8",
+  "C_rain_8": "C_rain_9",
+  "C_rain_9": "C_rain_10",
+  "C_rain_10": "C_rain_11",
+  "C_rain_11": "C_rain_12",
+  "C_rain_12": "C_rain_13"
+};
+
+/* ======================
+   引擎
+   ====================== */
+let currentId = "start";
+let typing = false;
+let typeTimer = null;
+let currentFullText = "";
+let branchPath = "";
+let locked = false;
+
+const bgEl = document.getElementById("bg");
+const charEl = document.getElementById("character");
+const dialogWrapper = document.getElementById("dialog-wrapper");
+const speakerEl = document.getElementById("speaker");
+const textEl = document.getElementById("text");
+const textContainer = document.getElementById("text-container");
+const choicesEl = document.getElementById("choices");
+const endMarkEl = document.getElementById("endMark");
+const restartBtn = document.getElementById("restartBtn");
+const hintEl = document.getElementById("hint");
+
+function typeText(str, cb) {
+  clearInterval(typeTimer);
+  typing = true;
+  currentFullText = str;
+  textEl.textContent = "";
+  textEl.classList.remove("done");
+  let i = 0;
+  typeTimer = setInterval(() => {
+    if (i < str.length) {
+      textEl.textContent += str[i];
+      i++;
+      textContainer.scrollTop = textContainer.scrollHeight;
+    } else {
+      clearInterval(typeTimer);
+      typing = false;
+      textEl.classList.add("done");
+      if (cb) cb();
+    }
+  }, 30);
+}
+
+function finishTyping() {
+  clearInterval(typeTimer);
+  typing = false;
+  textEl.textContent = currentFullText;
+  textEl.classList.add("done");
+  textContainer.scrollTop = textContainer.scrollHeight;
+}
+
+function showNode(id) {
+  const node = story[id];
+  if (!node) return;
+
+  if (id === "A_go_1") branchPath = "A";
+  if (id === "B_keep_1") branchPath = "B";
+  if (id === "C_throw_1") branchPath = "C";
+
+  currentId = id;
+
+  bgEl.style.backgroundImage = `url('${node.bg}')`;
+  speakerEl.textContent = node.speaker || "旁白";
+
+  if (node.char && node.char !== "") {
+    charEl.src = node.char;
+    charEl.classList.remove("hidden");
+  } else {
+    charEl.classList.add("hidden");
+  }
+
+  choicesEl.classList.remove("show");
+  choicesEl.innerHTML = "";
+  endMarkEl.classList.remove("show");
+  restartBtn.classList.remove("show");
+  hintEl.style.display = "block";
+
+  typeText(node.text, () => {
+    if (node.choices) {
+      setTimeout(() => showChoices(node.choices), 300);
+    }
+    if (node.end) {
+      setTimeout(() => {
+        endMarkEl.classList.add("show");
+        restartBtn.classList.add("show");
+        hintEl.style.display = "none";
+      }, 400);
+    }
+  });
+}
+
+function showChoices(choices) {
+  locked = true;
+  choicesEl.innerHTML = "";
+  choices.forEach(c => {
+    const btn = document.createElement("button");
+    btn.textContent = c.text;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      locked = false;
+      choicesEl.classList.remove("show");
+      choicesEl.innerHTML = "";
+      showNode(c.next);
+    };
+    choicesEl.appendChild(btn);
+  });
+  choicesEl.classList.add("show");
+  hintEl.style.display = "none";
+}
+
+function advance() {
+  if (locked) return;
+
+  const node = story[currentId];
+  if (!node) return;
+
+  if (typing) {
+    finishTyping();
+    if (node.choices) setTimeout(() => showChoices(node.choices), 100);
+    if (node.end) {
+      setTimeout(() => {
+        endMarkEl.classList.add("show");
+        restartBtn.classList.add("show");
+        hintEl.style.display = "none";
+      }, 200);
+    }
+    return;
+  }
+
+  if (choicesEl.classList.contains("show")) return;
+  if (node.choices || node.end) return;
+
+  if (node.junction) {
+    if (branchPath === "A") showNode("A_rain_1");
+    else if (branchPath === "B") showNode("B_rain_1");
+    else if (branchPath === "C") showNode("C_rain_1");
+    else showNode("A_rain_1");
+    return;
+  }
+
+  const nextId = NEXT[currentId];
+  if (nextId) {
+    showNode(nextId);
+  }
+}
+
+dialogWrapper.addEventListener("click", advance);
+
+restartBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  clearInterval(typeTimer);
+  typing = false;
+  locked = false;
+  branchPath = "";
+  currentId = "start";
+  endMarkEl.classList.remove("show");
+  restartBtn.classList.remove("show");
+  choicesEl.classList.remove("show");
+  choicesEl.innerHTML = "";
+  showNode("start");
+});
+
+showNode("start");
+</script>
+</body>
+</html>
